@@ -3,7 +3,7 @@ name: extract-document-text
 description: Extract text from PDFs, office documents and images, including scanned PDFs that need OCR. Use when a PDF returns no text, when reading a specification or datasheet programmatically, or when a document must be searched, quoted or checked rather than only viewed.
 metadata:
   author: "Georges Martin <jrjsmrtn@gmail.com>"
-  version: "0.1.2"
+  version: "0.1.3"
 license: MIT
 ---
 
@@ -18,29 +18,32 @@ Get text out of documents so it can be searched, quoted and verified — not mer
 - A document is a **scan** — an image wrapped in a PDF — and needs OCR
 - Extracting from office formats, HTML or images
 
-## Try the cheap path first
+## Reach for one tool, not a decision tree
 
-```sh
-pdftotext -layout doc.pdf - | head -40
-```
+[**xberg**](https://docs.xberg.io) (renamed from `kreuzberg`, same author) handles ~100 formats and
+**falls through to OCR automatically** when a PDF has no text layer. Prefer it as the default:
 
-Fast, no dependencies, and correct whenever the PDF carries a text layer.
+- **It does not fail silently.** A PDF with no text layer gets OCR'd rather than returning nothing.
+- **The native path is not slow.** Measured at **0.1s** on a text-layer PDF — the same as
+  `pdftotext`. Only the OCR path costs seconds.
+- **One call covers DOCX, HTML, images**, not just PDF.
+- **Cleaner boundaries** — no form-feed page furniture, which matters when chunking.
 
-**Its failure mode is silence.** On a scanned PDF it exits **0** and produces an **empty file**. That
-reads as "empty document" rather than "wrong tool", and a script that only checks the exit code will
-report success having extracted nothing.
+`pdftotext` remains worth knowing as the **zero-dependency fallback**: it is everywhere, needs no
+Python, and is correct whenever a text layer exists.
+
+**If you use it, check the word count and never the exit status.** On a scanned PDF it exits **0**
+and produces an **empty file** — which reads as "empty document" rather than "wrong tool".
 
 ```sh
 words=$(pdftotext doc.pdf - | wc -w)
 [ "$words" -gt 0 ] || echo "no text layer — this needs OCR"
 ```
 
-Check the **word count**, never the exit status.
+> **How far this was measured**: two documents — one text-layer, one scan. Enough to prefer a
+> default; not enough to claim it generally. Re-measure on your own corpus if the choice matters.
 
-## When there is no text layer
-
-[**xberg**](https://docs.xberg.io) (renamed from `kreuzberg`, same author) extracts from ~100 formats
-and **runs OCR automatically** when a PDF has no text layer.
+## Using it
 
 ```python
 from xberg import ExtractInput, extract
@@ -56,12 +59,21 @@ Three things about that call, each of which costs an hour if guessed:
 - text is at **`output.results[0].content`** — the return value is a *container*; `output.single` is a
   **method**, so `output.single is not None` is always true and tells you nothing
 
-Confirm OCR actually ran via `output.results[0].extraction_method` (`"ocr"` vs a text-layer method).
-Output includes Markdown tables for tabular layout.
+**Always check `output.results[0].extraction_method`.** It reports `native` for a text layer and
+`ocr` when the page was recognised — and that distinction changes how far you can trust the text.
 
-OCR needs an engine installed — Tesseract is the common default. Expect seconds per document, not
-milliseconds, and expect OCR text to contain recognition errors: **quote from it only after checking
-the passage against the rendered page**.
+**Structure recovery is document-dependent, not automatic.** OCR performs layout analysis and can
+emit Markdown tables; the native path passes through whatever the PDF already contains. Measured: a
+scan produced Markdown tables, a text-layer policy document produced none. Do not assume you will get
+structure back.
+
+OCR needs an engine installed — Tesseract is the common default. Expect seconds per document on that
+path only.
+
+> **OCR text is not quotable without verification.** Recognition silently substitutes characters, and
+> a wrong character inside quotation marks is worse than no quote at all — it is citable and looks
+> authoritative. Before quoting any passage where `extraction_method == "ocr"`, check it against the
+> rendered page.
 
 ## Read the documentation before introspecting
 

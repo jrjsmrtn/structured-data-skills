@@ -8,6 +8,42 @@ During development the patch level is bumped per change (`0.1.x`).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-05
+
+### Added
+
+- **Tabular data** in `process-structured-data` — `duckdb` for CSV, Parquet and JSONL, queried **in
+  place** with no import step, over disk or HTTP. The format most often attacked with `cut` and
+  `awk`, and the one where they most reliably fail
+  - With a worked example that was **run, not asserted**: on `"Smith, J",150`, `awk -F,` returns
+    `` J"`` and `duckdb` returns `150`. The `awk` answer is not an error — it is a plausible wrong
+    value that flows downstream
+  - **`sqlite3` versus `duckdb` is not a preference**: `sqlite3` for a database you own and mutate,
+    `duckdb` for files you want to interrogate
+
+### Changed
+
+- **`extract-document-text` now recommends `xberg` first**, with `pdftotext` as the zero-dependency
+  fallback — the inverse of 0.1.2. Measured rather than assumed: **the native path is 0.1s**, the
+  same as `pdftotext`, so the "cheap path first" argument was about a cost that does not exist
+  outside OCR
+
+### Fixed
+
+- **Two overstated claims**, both corrected by measuring
+  - *"Output includes Markdown tables"* — structure recovery is **document-dependent**, not
+    automatic. OCR performs layout analysis and can emit tables; the native path passes through
+    whatever the PDF contains. A scan produced tables; a text-layer policy document produced none
+  - *"Expect seconds per document"* — true of the **OCR path only**, stated too broadly
+- **OCR text is marked not-quotable without verification.** Recognition silently substitutes
+  characters, and a wrong character inside quotation marks is citable and looks authoritative
+
+### Notes
+
+The comparison behind the inverted default is **n=2 documents** — one text-layer, one scan. Enough to
+correct an overstatement and flip a default argued from assumption; not enough to claim generally.
+The skill says so.
+
 ## [0.1.2] - 2026-08-05
 
 ### Fixed

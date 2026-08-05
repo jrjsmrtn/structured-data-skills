@@ -3,7 +3,7 @@ name: process-structured-data
 description: Query and safely edit JSON, YAML, Markdown, TOML and SQLite using format-aware tools. Use when reading a value out of a config file, editing YAML frontmatter, bumping a version across files, scripting a change to structured data, or when sed/grep has mangled a file.
 metadata:
   author: "Georges Martin <jrjsmrtn@gmail.com>"
-  version: "0.1.2"
+  version: "0.1.3"
 license: MIT
 ---
 
@@ -46,14 +46,43 @@ Two commands, two silent corruptions, neither visible until the file was rendere
 | Markdown | `mq` | jq-like query syntax; `mq -F json` for scripting |
 | **YAML frontmatter in Markdown** | **`yq -f process`** | The right tool, and non-obvious — see below |
 | TOML | `yq -p toml` | Or `taplo` where available |
-| SQLite | `sqlite3` | `-json` output pipes straight into `jq` |
+| SQLite | `sqlite3` | A database you own and mutate. `-json` output pipes straight into `jq` |
+| CSV, Parquet, JSONL | `duckdb` | Files you want to *interrogate* — queried in place, no import step |
 
 ```sh
 jq '.version' package.json
 yq '.jobs.build.steps[0].uses' .github/workflows/ci.yml
 mq '.h1' README.md
 sqlite3 -json data.db 'select id,name from items limit 5' | jq '.[].name'
+duckdb -c "select * from 'data.csv' where amount > 100"
 ```
+
+### Tabular data: stop reaching for `cut` and `awk`
+
+CSV is the format most often attacked with line tools, and the one where they most reliably fail —
+quoted fields containing commas, embedded newlines, a BOM, `\r\n` endings. All of it parses
+correctly in a tool that knows the format and silently corrupts in one that does not.
+
+```sh
+duckdb -c "select count(*) from 'logs/*.parquet'"          # globs, no import
+duckdb -c "select * from read_json_auto('big.json') limit 5"
+duckdb -c "copy (select * from 'in.csv' where ok) to 'out.parquet'"
+```
+
+Worked example — a quoted field containing a comma, which is ordinary CSV:
+
+```sh
+printf 'name,amount\n"Smith, J",150\n' > t.csv
+awk -F, 'NR==2{print $2}' t.csv                 # ->  J"      split inside the quotes
+duckdb -noheader -list -c "select amount from 't.csv'"   # -> 150     correct
+```
+
+The `awk` answer is not an error — it is a plausible wrong value that flows downstream.
+
+**`sqlite3` versus `duckdb`** is not a preference: `sqlite3` is for a database you own, write to and
+keep; `duckdb` is for files you want to ask questions of. DuckDB reads CSV, Parquet, JSON and
+newline-delimited JSON **directly from disk or over HTTP**, with no load step — so it is usually the
+faster answer for "what is in this file", even when the file is not a database at all.
 
 ## Frontmatter: the case people get wrong
 
