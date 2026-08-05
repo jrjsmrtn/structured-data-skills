@@ -1,0 +1,20 @@
+{
+  "name": "structured-data-skills",
+  "version": "0.1.0",
+  "description": "Query and safely edit structured files — JSON, YAML, Markdown, SQLite — and extract text from documents including scanned PDFs, using format-aware tools instead of line-based ones",
+  "repository": "https://github.com/jrjsmrtn/structured-data-skills",
+  "author": {
+    "name": "Georges Martin",
+    "email": "jrjsmrtn@gmail.com"
+  },
+  "keywords": [
+    "jq",
+    "yq",
+    "markdown",
+    "frontmatter",
+    "pdf",
+    "ocr",
+    "sqlite",
+    "text-extraction"
+  ]
+}
