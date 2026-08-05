@@ -8,6 +8,18 @@ During development the patch level is bumped per change (`0.1.x`).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-08-05
+
+### Fixed
+
+- **The 0.1.1 version bump corrupted this plugin's own examples** — a blanket replace of the old
+  version string across `*.md` rewrote two *illustrative* version numbers in `process-structured-data`
+  as well as the frontmatter metadata. That is exactly the failure the skill documents: **a pattern
+  that matched more than intended**
+  - Examples now use a version this plugin will never hold, so a future bump cannot reach them
+  - The skill gains the rule the incident produced: **scope a replacement to where the value is data,
+    not prose**, and count what changed rather than trusting the pattern
+
 ## [0.1.1] - 2026-08-05
 
 ### Added

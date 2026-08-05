@@ -3,7 +3,7 @@ name: extract-document-text
 description: Extract text from PDFs, office documents and images, including scanned PDFs that need OCR. Use when a PDF returns no text, when reading a specification or datasheet programmatically, or when a document must be searched, quoted or checked rather than only viewed.
 metadata:
   author: "Georges Martin <jrjsmrtn@gmail.com>"
-  version: "0.1.1"
+  version: "0.1.2"
 license: MIT
 ---
 

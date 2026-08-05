@@ -3,7 +3,7 @@ name: process-structured-data
 description: Query and safely edit JSON, YAML, Markdown, TOML and SQLite using format-aware tools. Use when reading a value out of a config file, editing YAML frontmatter, bumping a version across files, scripting a change to structured data, or when sed/grep has mangled a file.
 metadata:
   author: "Georges Martin <jrjsmrtn@gmail.com>"
-  version: "0.1.1"
+  version: "0.1.2"
 license: MIT
 ---
 
@@ -94,9 +94,9 @@ For surgical edits an exact-string replacement beats a pattern — but only if y
 matched.
 
 ```python
-old = 'version: "0.1.1"'
+old = 'version: "1.2.3"'
 assert old in text, "pattern not found — do not assume the edit applied"
-text = text.replace(old, 'version: "0.2.0"', 1)
+text = text.replace(old, 'version: "1.3.0"', 1)
 ```
 
 **An unasserted replace is a silent no-op.** It cannot distinguish *"already correct"* from *"my
@@ -109,10 +109,13 @@ pattern is wrong"*, and both return success. Three ways it bites, all observed:
 
 Each reported success and changed nothing.
 
-**Changing one value across many files: count before and after** rather than eyeballing.
+**Changing one value across many files: count before and after** rather than eyeballing — and
+**scope the replacement to where the value is data, not prose.** A blanket replace across `*.md`
+will happily rewrite the version numbers in your own examples; this document was corrupted exactly
+that way, which is why the examples below use a version no real file here will ever hold.
 
 ```sh
-before=$(grep -rl '"0.1.1"' --include='*.json' --include='*.md' . | wc -l)
+before=$(grep -rl '"1.2.3"' --include='*.json' --include='*.md' . | wc -l)
 # ... apply the edit ...
 # expect: zero files still match the old value, and exactly `before` files match the new one
 ```
