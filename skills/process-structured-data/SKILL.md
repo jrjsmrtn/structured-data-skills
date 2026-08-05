@@ -3,7 +3,7 @@ name: process-structured-data
 description: Query and safely edit JSON, YAML, Markdown, TOML and SQLite using format-aware tools. Use when reading a value out of a config file, editing YAML frontmatter, bumping a version across files, scripting a change to structured data, or when sed/grep has mangled a file.
 metadata:
   author: "Georges Martin <jrjsmrtn@gmail.com>"
-  version: "0.1.3"
+  version: "0.1.4"
 license: MIT
 ---
 
@@ -96,6 +96,64 @@ yq -f extract '.description' SKILL.md                     # read frontmatter onl
 
 `-f process` edits the frontmatter and passes the body through unchanged. Verified on a file with a
 21 KB body: preserved byte-for-byte.
+
+## Validate against a schema — three different jobs
+
+If a JSON Schema exists for a format, it does something no amount of reading can: it names **which
+field** is wrong and **which constraint** it violated. `boon` covers drafts 4 through 2020-12.
+
+### 1. Diagnose — why was this rejected?
+
+The most under-used case. When a tool says "invalid input" and nothing more, a schema turns that into
+a location and a reason, and reports **every** violation rather than stopping at the first:
+
+```
+$ boon schema.json bad.json
+- at '/name': 'Structured Data Skills' does not match pattern '^[a-z0-9-]+$'
+- at '/source/sha': length must be >=40, but got 7
+- at '/version': '0.1' does not match pattern '^\d+\.\d+\.\d+$'
+```
+
+Three defects, three JSON Pointers, one run. Guessing would have found one and re-run twice.
+
+### 2. Validate — gate it
+
+Exit status is **0** for valid and **2** for invalid, so it drops straight into a hook or CI. Use
+`-o detailed` or `-o basic` when something downstream needs to parse the result.
+
+### 3. Author — write a schema for your own documents
+
+Worth doing for any file **your project hand-edits and nothing checks**: an authored config, a
+registry overlay, a manifest of your own design. Start from a known-good instance, then constrain
+progressively — `required`, then `type`, then `pattern`/`enum` for the fields that actually have
+rules.
+
+**Then prove the schema can fail.** Validate a deliberately broken instance and confirm it is caught
+at the field you expect. A schema that has only ever seen valid input is as unproven as any other
+check — and an over-permissive schema is worse than none, because it certifies.
+
+### Finding out whether a schema already exists
+
+Check before concluding there is none: [SchemaStore](https://www.schemastore.org/) catalogs
+**1,400+** schemas for common config formats, and its catalog is machine-readable.
+
+```sh
+curl -sSL https://www.schemastore.org/api/json/catalog.json \
+  | jq -r '.schemas[] | select(.name | test("lefthook";"i")) | .url'
+```
+
+Formats you may not realise are covered: GitHub workflows, `renovate.json`, `.gitleaks.toml`,
+CycloneDX BOMs, `tsconfig.json`, `package.json`, lefthook configs.
+
+### YAML and TOML
+
+`boon` takes JSON, so convert first — which is the one place these tools chain:
+
+```sh
+yq -o json config.yml | boon schema.json /dev/stdin
+```
+
+Verified: the same three violations are reported through the YAML path, at the same pointers.
 
 ## Editing prose bodies
 

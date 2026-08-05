@@ -8,6 +8,25 @@ During development the patch level is bumped per change (`0.1.x`).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-08-05
+
+### Added
+
+- **JSON Schema validation with `boon`** (drafts 4 – 2020-12), covering three jobs that are usually
+  conflated
+  - **Diagnose** — the under-used one. When a tool says "invalid input" and nothing more, a schema
+    turns that into a location and a reason, and reports **every** violation in one run rather than
+    stopping at the first. Verified: three defects, three JSON Pointers, one invocation
+  - **Validate** — exit `0` valid, `2` invalid, so it gates cleanly; `-o detailed`/`basic` when
+    something downstream parses the result
+  - **Author** — write a schema for files your project hand-edits and nothing checks. **Then prove
+    the schema can fail**: an over-permissive schema is worse than none, because it certifies
+- **Schema discovery via [SchemaStore](https://www.schemastore.org/)** — 1,400+ catalogued schemas,
+  machine-readable. Check before concluding none exists; GitHub workflows, `renovate.json`,
+  `.gitleaks.toml`, CycloneDX BOMs and lefthook configs are all covered
+- **The YAML path**: `yq -o json config.yml | boon schema.json /dev/stdin` — verified to report the
+  same violations at the same pointers, which is the one place these tools chain
+
 ## [0.1.3] - 2026-08-05
 
 ### Added
