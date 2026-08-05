@@ -8,6 +8,18 @@ During development the patch level is bumped per change (`0.1.x`).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-05
+
+### Added
+
+- **Tool-specific gotchas** carried over from working notes rather than lost when those notes were
+  retired: `yq`'s low-precedence `|` (a selective update without parenthesised LHS returns the
+  fragment, not the document — and looks successful), `=` versus `|=` context, `mq`'s `None`
+  propagation and CWD-relative `file_exists`, and where `mq`'s authoritative builtin list actually
+  lives when the rendered reference is JavaScript-only
+- A pointer to check for `llms.txt` / `llms-full.txt` / single-page `print.html` before inferring a
+  library's behaviour from experiments
+
 ## [0.1.0] - 2026-08-05
 
 Initial release. Two skills, extracted from practices proven across a multi-repository portfolio

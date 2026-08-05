@@ -3,7 +3,7 @@ name: process-structured-data
 description: Query and safely edit JSON, YAML, Markdown, TOML and SQLite using format-aware tools. Use when reading a value out of a config file, editing YAML frontmatter, bumping a version across files, scripting a change to structured data, or when sed/grep has mangled a file.
 metadata:
   author: "Georges Martin <jrjsmrtn@gmail.com>"
-  version: "0.1.0"
+  version: "0.1.1"
 license: MIT
 ---
 
@@ -94,7 +94,7 @@ For surgical edits an exact-string replacement beats a pattern — but only if y
 matched.
 
 ```python
-old = 'version: "0.1.0"'
+old = 'version: "0.1.1"'
 assert old in text, "pattern not found — do not assume the edit applied"
 text = text.replace(old, 'version: "0.2.0"', 1)
 ```
@@ -112,7 +112,7 @@ Each reported success and changed nothing.
 **Changing one value across many files: count before and after** rather than eyeballing.
 
 ```sh
-before=$(grep -rl '"0.1.0"' --include='*.json' --include='*.md' . | wc -l)
+before=$(grep -rl '"0.1.1"' --include='*.json' --include='*.md' . | wc -l)
 # ... apply the edit ...
 # expect: zero files still match the old value, and exactly `before` files match the new one
 ```
@@ -133,6 +133,35 @@ Four failure modes make a check report nothing useful:
 
 **Prove a clean result can fail.** Feed the check a known-bad input — a planted value, a deliberately
 broken fixture — and confirm it says so. A check that has only ever passed is unproven.
+
+## Gotchas that cost real time
+
+**`yq`**
+
+- **`|` has low precedence**, so a selective update needs the whole left-hand side parenthesised:
+  `(.[] | select(.name == "sally") | .fruit) = "mango"`. Without the parens you get back only the
+  matched fragment, not the updated document — and it looks like a successful edit.
+- **`=` evaluates its right-hand side against the *root* context; `|=` evaluates it against *each*
+  left-hand result.** Reach for `|=` when the new value depends on the old one.
+
+**`mq`**
+
+- **A selector yields `None` for every non-matching node**, and those `None`s flow downstream. Guard
+  with `compact()` or `if (self != None): …`, or a later stage will operate on them.
+- **`file_exists` is CWD-relative, not file-relative** — so it cannot check relative links across a
+  tree in a single pass.
+- **The rendered builtin reference is JavaScript-only** and its `llms.txt` URLs 404. The authoritative
+  list, with doc-comments, is the source itself:
+  `raw.githubusercontent.com/harehare/mq/main/crates/mq-lang/builtin.mq`; the whole book as one page
+  is `mqlang.org/book/print.html`.
+
+**`pandoc`** is the right tool for *conversion* rather than round-tripping — and its **Lua filters**
+give full AST access, which is strictly more capable than a query language when a transformation
+needs context.
+
+**Before fighting any of these**, check whether the project publishes `llms.txt`, `llms-full.txt` or
+a single-page `print.html`. A rendered docs site that needs JavaScript is often available as plain
+text one URL away, and that is cheaper than inferring behaviour from experiments.
 
 ## Related Skills
 
