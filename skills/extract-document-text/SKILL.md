@@ -3,7 +3,7 @@ name: extract-document-text
 description: Extract text from PDFs, office documents and images, including scanned PDFs that need OCR. Use when a PDF returns no text, when reading a specification or datasheet programmatically, or when a document must be searched, quoted or checked rather than only viewed.
 metadata:
   author: "Georges Martin <jrjsmrtn@gmail.com>"
-  version: "0.1.5"
+  version: "0.1.6"
 license: MIT
 ---
 
@@ -151,6 +151,37 @@ plausible "0 characters" that looked like a broken tool and was a broken measure
 **Before writing a line against an unfamiliar library**: find its quickstart, and check whether it
 ships an assistant plugin or conventions file. Many now do, and that is the cheapest possible source
 of the calling convention.
+
+## Fetching what you are about to extract
+
+When the document is behind a URL, the cost of getting this wrong is a *plausible non-document* —
+see the next section. Escalate deliberately; each rung is heavier and less reproducible than the one
+above it.
+
+1. **A published machine-readable form, if there is one.** `llms.txt`, `llms-full.txt`, a single-page
+   `print.html`, the `.md` beside an HTML page — or, for a document with a canonical format, that
+   format: an RFC's `.xml`, a standard's source rather than its rendering. Cheapest, most faithful,
+   and it beats every rung below when it exists. See `process-structured-data`, *A rendered document
+   is not the document*. `llms.txt` is a **proposal** — Answer.AI, September 2024 — and
+   not a standard: no standards body has adopted it, whatever a search result tells you. Adoption
+   across tool and framework docs is still wide enough to be worth one request first.
+2. **`curl`.** The default whenever the target is already a document — a PDF, a spec, a raw file.
+   Milliseconds, no dependencies, byte-exact.
+3. **`xberg extract --url`** when you want the *text* rather than the bytes: it fetches and extracts
+   in one step, and reports `extraction_method` for what it did.
+4. **A real browser — Playwright.** Only when the content does not exist until JavaScript has run,
+   when a challenge page or cookie wall stands in front of it, or when reaching it needs interaction
+   or a session.
+
+**Escalate on evidence, not on annoyance.** A `200` carrying a challenge page, an SPA shell or a
+cookie wall is the signal to go up a rung. A `200` carrying the document in a layout you dislike is
+not — that is an extraction problem, and rung 4 will not fix it.
+
+> **Rung 4 produces a different kind of evidence.** A browser *renders*; what you captured is what
+> that browser build produced on that date, and a later run may differ. When a claim rests on
+> rendered behaviour rather than on a file's bytes, **record the browser and its version beside the
+> date**. *"Observed via Playwright, browser version not recorded"* is a limit you will have to state
+> in the record later; recording it costs one line now.
 
 ## Verifying an extraction
 

@@ -8,6 +8,46 @@ During development the patch level is bumped per change (`0.1.x`).
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-08-20
+
+### Added
+
+- **`process-structured-data` — *A rendered document is not the document*.** The skill's core rule
+  moved one step earlier: before choosing a tool, choose the artifact. When a document is published
+  in several formats, one is usually canonical and machine-readable and the rest are renderings, and
+  parsing a rendering means reverse-engineering layout decisions that were never content.
+  - **IETF RFCs as the worked case**, because all four formats are one request apart and only one is
+    authoritative. RFC 7990: *"The canonical format for RFCs is XML using the xml2rfc version 3
+    (xml2rfc v3) vocabulary."* The boundary is exact — **RFC 8650 (Nov 2019) is the first with
+    `.xml`**, RFC 8649 has none, and RFC 7990 itself predates the rollout and is not available in the
+    formats it defines.
+  - The published XML is **self-contained** (zero entity declarations), so an ordinary XML parser in
+    any language is enough — and `<name slugifiedName="…">` *is* the HTML anchor, so parsing the
+    canonical form yields citable deep links that no amount of text parsing gives you.
+  - **Check status before you quote.** `rfc-index.xml` (9,828 entries) carries `current-status` and
+    `obsoleted-by`. RFC 2616 reports `obsoleted-by: RFC7230 … RFC7235` — **a verbatim quotation from
+    a superseded document is still a wrong citation, and it passes every string check**, because the
+    text really does say that. Generalised: any corpus of citations wants a status check beside its
+    text check.
+  - Two traps recorded so nobody re-derives them: old plain text carries form-feed page furniture
+    while text from 8650 has a UTF-8 BOM, no form feeds and real non-ASCII (RFC 9309 contains
+    `Zürich`) — two normalisations split at one boundary; and searching any package ecosystem for an
+    RFC *parser* returns protocol implementations instead. Checked 2026-08-20: no Go or Rust tool
+    parses RFC documents; Python's `id2xml` is the only option and crashes on RFC 791.
+- **`extract-document-text` — an escalation ladder for fetching.** The skill described the failure
+  (challenge pages, SPA shells and cookie walls are large, well-formed and contain nothing you asked
+  for) and offered no escalation. Four rungs now: a published machine-readable form, `curl`,
+  `xberg extract --url`, then **a real browser (Playwright)** for content that does not exist until
+  JavaScript runs.
+  - **Escalate on evidence, not on annoyance**: a `200` carrying a challenge page is the signal; a
+    `200` carrying the document in an ugly layout is an extraction problem a browser will not fix.
+  - **Rung 4 produces a different kind of evidence.** A browser renders, so what you captured is what
+    that build produced on that date — record the browser and version beside the date, or the
+    observation cannot be reproduced.
+- **TSV in `process-structured-data`.** `.tsv` is auto-detected by duckdb; any other extension needs
+  `read_csv(…, delim='\t')`. The trap is sharper than CSV's: a tab-separated file may hold commas
+  *inside* fields, so `-F,` splits a value that was never a boundary.
+
 ## [0.1.5] - 2026-08-20
 
 ### Added

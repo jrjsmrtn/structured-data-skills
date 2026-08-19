@@ -3,7 +3,7 @@ name: process-structured-data
 description: Query and safely edit JSON, YAML, Markdown, TOML and SQLite using format-aware tools. Use when reading a value out of a config file, editing YAML frontmatter, bumping a version across files, scripting a change to structured data, or when sed/grep has mangled a file.
 metadata:
   author: "Georges Martin <jrjsmrtn@gmail.com>"
-  version: "0.1.5"
+  version: "0.1.6"
 license: MIT
 ---
 
@@ -47,7 +47,7 @@ Two commands, two silent corruptions, neither visible until the file was rendere
 | **YAML frontmatter in Markdown** | **`yq -f process`** | The right tool, and non-obvious — see below |
 | TOML | `yq -p toml` | Or `taplo` where available |
 | SQLite | `sqlite3` | A database you own and mutate. `-json` output pipes straight into `jq` |
-| CSV, Parquet, JSONL | `duckdb` | Files you want to *interrogate* — queried in place, no import step |
+| CSV, TSV, Parquet, JSONL | `duckdb` | Files you want to *interrogate* — queried in place, no import step |
 
 ```sh
 jq '.version' package.json
@@ -79,10 +79,80 @@ duckdb -noheader -list -c "select amount from 't.csv'"   # -> 150     correct
 
 The `awk` answer is not an error — it is a plausible wrong value that flows downstream.
 
+**TSV is the same job**, and the trap is sharper: a tab-separated file may hold commas *inside*
+fields, so `-F,` on a TSV splits a value that was never a boundary. `.tsv` is auto-detected;
+anything else needs the delimiter named.
+
+```sh
+duckdb -c "select * from 'data.tsv'"                                     # detected by extension
+duckdb -c "select * from read_csv('data.txt', delim='\t', header=true)"  # any extension
+```
+
 **`sqlite3` versus `duckdb`** is not a preference: `sqlite3` is for a database you own, write to and
 keep; `duckdb` is for files you want to ask questions of. DuckDB reads CSV, Parquet, JSON and
 newline-delimited JSON **directly from disk or over HTTP**, with no load step — so it is usually the
 faster answer for "what is in this file", even when the file is not a database at all.
+
+## A rendered document is not the document
+
+The rule above, one step earlier: **before choosing a tool, choose the artifact.** When something is
+published in several formats, one is usually canonical and machine-readable and the rest are
+renderings. Parsing a rendering means reverse-engineering layout decisions — page breaks,
+hyphenation, column alignment — that were never content.
+
+IETF RFCs are the worked case, because all four formats are one request apart and only one is
+authoritative. [RFC 7990](https://www.rfc-editor.org/rfc/rfc7990.html) states it: *"The canonical
+format for RFCs is XML using the xml2rfc version 3 (xml2rfc v3) vocabulary."* HTML, plain text and
+PDF are publication formats rendered from it.
+
+| Want | Fetch |
+|---|---|
+| RFC **8650 or later** | `rfc-editor.org/rfc/rfcNNNN.xml` — canonical v3, self-contained |
+| RFC **before 8650** | `.txt` — no `.xml` or `.pdf` exists for these |
+| ever | **not the `.pdf`** — its line breaks and hyphenation are layout, not text |
+
+The boundary is exact and worth knowing: RFC 8650 (November 2019) is the first with `.xml`; RFC 8649
+(August 2019) has none. Even RFC 7990, which *defines* the formats, predates the rollout and is not
+available in them.
+
+**The published XML is self-contained** — zero entity declarations — so an ordinary XML parser is
+enough, in any language. And section names carry a slug that *is* the HTML anchor:
+
+```sh
+curl -sS https://www.rfc-editor.org/rfc/rfc9309.xml \
+  | grep -oE '<name slugifiedName="[^"]+">[^<]+'      # -> name-introduction, "Introduction"
+# so the citable deep link is rfc9309.html#name-introduction — verified to resolve
+```
+
+Parsing the canonical form yields citable links for free; no amount of text parsing does.
+
+### Check status before you quote
+
+A verbatim quotation from a superseded document is still a wrong citation, and it passes every
+string check you have — the text really does say that. `rfc-index.xml` answers it in one lookup:
+
+```sh
+curl -sS https://www.rfc-editor.org/rfc-index.xml > rfc-index.xml   # ~13 MB, 9,828 entries
+```
+
+Namespace `https://www.rfc-editor.org/rfc-index`; each `rfc-entry` carries `current-status`,
+`publication-status` and, when superseded, `obsoleted-by`. RFC 2616 (HTTP/1.1) reports
+`obsoleted-by: RFC7230 … RFC7235` — quoting it accurately is still quoting the wrong document.
+**Generalise it: any corpus of citations wants a status check beside its text check.**
+
+### Two traps, so nobody re-derives them
+
+- **Old plain text carries page furniture, new plain text does not.** Below RFC 8650 the `.txt` has
+  form-feed page breaks with headers and footers around them; from 8650 the `.txt` starts with a
+  UTF-8 BOM (`EF BB BF`), has no form feeds, and may hold genuine non-ASCII — RFC 9309 contains
+  `Zürich`. Two different normalisations, split at the same boundary. A pipeline assuming ASCII
+  corrupts the second kind silently.
+- **Searching for a parser finds protocol implementations instead.** In every package ecosystem
+  `rfc` means *"implements the protocol specified in RFC N"* — RFC 3339 dates, RFC 5545 iCalendar.
+  Checked 2026-08-20: no Go or Rust tool parses RFC *documents*. For structure from pre-8650 text
+  there is one option, Python's `id2xml`, and it wants the input filename to start with `rfc` or
+  `draft-`, emits **v2** XML needing `xml2rfc --v2v3`, references entities it fetches over the
+  network, and crashes on RFC 791. Stripping form feeds yourself is a dozen lines and no dependency.
 
 ## Frontmatter: the case people get wrong
 
