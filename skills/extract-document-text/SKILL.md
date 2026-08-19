@@ -3,7 +3,7 @@ name: extract-document-text
 description: Extract text from PDFs, office documents and images, including scanned PDFs that need OCR. Use when a PDF returns no text, when reading a specification or datasheet programmatically, or when a document must be searched, quoted or checked rather than only viewed.
 metadata:
   author: "Georges Martin <jrjsmrtn@gmail.com>"
-  version: "0.1.4"
+  version: "0.1.5"
 license: MIT
 ---
 
@@ -43,7 +43,71 @@ words=$(pdftotext doc.pdf - | wc -w)
 > **How far this was measured**: two documents — one text-layer, one scan. Enough to prefer a
 > default; not enough to claim it generally. Re-measure on your own corpus if the choice matters.
 
-## Using it
+## Two distributions, and they share no interface
+
+`xberg` ships as a **Python package** and as **`xberg-cli`, a Rust binary** — one project, one
+version line (both 1.0.14 as of 2026-08-20), two entirely different calling conventions. Neither is
+the real one. Pick by where you are calling from, and know which you installed: every note below is
+specific to one of them.
+
+| | Python package | `xberg-cli` |
+|---|---|---|
+| Get it | `uv tool install xberg`, `pip install xberg` | prebuilt binary from [docs.xberg.io](https://docs.xberg.io); also published on crates.io |
+| Interface | async Python API | subcommands, text or JSON on stdout |
+| Reach for it | you are already inside Python | a shell pipeline, a hook, a check, an agent |
+
+The prebuilt binary is self-contained: it ships `libheif`, `libaom`, `libx265` and `libvmaf`
+alongside it, so HEIC and AV1 inputs work with no system codecs — and it is ~90 MB for that reason.
+
+### Using the CLI
+
+```sh
+xberg extract document.pdf                  # plain text on stdout
+xberg extract document.pdf --format json    # structured
+xberg extract --url https://…/spec.pdf      # fetch and extract
+xberg extract --stdin -m application/pdf    # bytes on a pipe — the -m is not optional, see below
+xberg detect document.pdf                   # MIME type only
+xberg formats                               # 119 extension -> MIME rows
+```
+
+> **`--stdin` without `-m` emits the raw file bytes and exits 0.** Piping a PDF in with no MIME hint
+> returns the file itself — `%PDF-1.3`, a binary run, `3 0 obj`, `/Filter /FlateDecode`, `stream` —
+> the container rather than the document, reported as a success. Detection works from a path and not
+> from a pipe, so on the `--stdin` path the hint is load-bearing. Same shape as `pdftotext` exiting 0
+> on a scan: the failure arrives as content, not as an error.
+
+`--format json` returns `{"result": {…}, "extraction_time_ms": N}`, so **the text is at
+`.result.content`** — and the fields you need in order to trust it sit right beside it:
+
+```sh
+xberg extract doc.pdf --format json | jq -r '.result.extraction_method, .result.quality_score'
+xberg extract doc.pdf --format json | jq -r '.result.content' > doc.txt
+```
+
+`result` carries `content`, `mime_type`, `metadata`, `extraction_method`, `tables`, `counts` and
+`quality_score`.
+
+**OCR is flags, not a separate mode** — and the flag worth knowing is not `--ocr`:
+
+- `--ocr true|false`, with `--ocr-backend tesseract|paddle-ocr|vlm|candle-*`
+- `--force-ocr true` — OCR even where text extraction succeeded
+- **`--ocr-scanned-pages`** — OCR only the pages that *look* like scans, keeping native text
+  elsewhere. The one to reach for on a mixed document, and it catches the nastiest case: a scanned
+  page carrying a junk hidden text layer that would otherwise pass the quality check and return
+  garbage as if it were native text
+- `--scanned-min-confidence` defaults to **0.7**. Its help records that **0.50 or lower also OCRs
+  born-digital slides using a full-bleed background image** — a false positive you opt into, not one
+  you discover
+
+`batch`, `chunk`, `embed` and `cache` exist too, and **`serve`/`mcp`** expose extraction as an HTTP
+or MCP server — a third integration route, and the one to consider before writing a wrapper.
+
+> **Measured** — macOS, `xberg-cli` 1.0.14, 2026-08-20, **one text-layer PDF**: `xberg extract` and
+> `pdftotext` returned the **same 101 words**, in 0.034 s and 0.039 s wall clock; self-reported
+> `extraction_time_ms` was 11.8. That is enough to say the native path costs nothing next to
+> `pdftotext`. It says nothing about the OCR path, and nothing about a corpus.
+
+### Using the Python package
 
 ```python
 from xberg import ExtractInput, extract
@@ -59,8 +123,11 @@ Three things about that call, each of which costs an hour if guessed:
 - text is at **`output.results[0].content`** — the return value is a *container*; `output.single` is a
   **method**, so `output.single is not None` is always true and tells you nothing
 
-**Always check `output.results[0].extraction_method`.** It reports `native` for a text layer and
-`ocr` when the page was recognised — and that distinction changes how far you can trust the text.
+## What to check, whichever one you used
+
+**Always check `extraction_method`** — `output.results[0].extraction_method` in Python,
+`.result.extraction_method` in the CLI's JSON. It reports `native` for a text layer and `ocr` when
+the page was recognised, and that distinction changes how far you can trust the text.
 
 **Structure recovery is document-dependent, not automatic.** OCR performs layout analysis and can
 emit Markdown tables; the native path passes through whatever the PDF already contains. Measured: a

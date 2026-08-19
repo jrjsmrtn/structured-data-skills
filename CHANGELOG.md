@@ -8,6 +8,44 @@ During development the patch level is bumped per change (`0.1.x`).
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-08-20
+
+### Added
+
+- **`extract-document-text` now documents both xberg distributions.** It described the Python
+  package's API without ever saying that was the one it meant — so a reader who installed
+  `xberg-cli`, the Rust binary, found none of it applicable and nothing telling them why. Same
+  project, same version line, no shared interface.
+  - **The CLI section is measured, not transcribed**: every command was run. `--format json` returns
+    `{"result": {…}, "extraction_time_ms": N}`, so the text is at **`.result.content`**, beside
+    `extraction_method`, `quality_score`, `tables`, `counts` and `metadata`.
+  - **`--ocr-scanned-pages` is the flag worth knowing**, not `--ocr`: it OCRs only pages that look
+    like scans, keeping native text elsewhere, and catches a scan whose junk hidden text layer would
+    otherwise pass the quality check and return garbage as native text. Its
+    `--scanned-min-confidence` defaults to 0.7, and 0.50 or lower also OCRs born-digital slides with
+    a full-bleed background — a false positive you opt into rather than discover.
+  - `serve`/`mcp` expose extraction as an HTTP or MCP server — a third integration route, worth
+    knowing before anyone writes a wrapper.
+
+### Fixed
+
+- **`--stdin` without `-m` emits the raw file bytes and exits 0.** Found while running the commands
+  for this section rather than by reading the help: piping a PDF in with no MIME hint returns
+  `%PDF-1.3 … stream` — the container instead of the document, as a success. Detection works from a
+  path and not from a pipe, so the hint is load-bearing there. It is the same failure shape the skill
+  already warns about for `pdftotext` on a scan, which is why it belongs in this file and not in a
+  bug report.
+- **Guidance that applies to both distributions no longer sits under the Python example.**
+  `extraction_method`, structure recovery, the OCR engine note and the not-quotable warning moved to
+  their own section, and the `extraction_method` line now names both accessors.
+
+### Notes
+
+- Measured: macOS, `xberg-cli` 1.0.14, 2026-08-20, **one text-layer PDF** — `xberg extract` and
+  `pdftotext` returned the same 101 words in 0.034 s and 0.039 s. Enough to say the native path costs
+  nothing next to `pdftotext`; nothing about the OCR path, nothing about a corpus. The existing
+  two-document caveat stands unchanged.
+
 ## [0.1.4] - 2026-08-05
 
 ### Added
