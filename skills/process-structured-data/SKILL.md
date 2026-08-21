@@ -3,7 +3,7 @@ name: process-structured-data
 description: Query and safely edit JSON, YAML, Markdown, TOML and SQLite using format-aware tools. Use when reading a value out of a config file, editing YAML frontmatter, bumping a version across files, scripting a change to structured data, or when sed/grep has mangled a file.
 metadata:
   author: "Georges Martin <jrjsmrtn@gmail.com>"
-  version: "0.1.6"
+  version: "0.1.7"
 license: MIT
 ---
 
@@ -43,7 +43,7 @@ Two commands, two silent corruptions, neither visible until the file was rendere
 |---|---|---|
 | JSON | `jq` | Round-trips faithfully. `jq -e` sets exit status from the result — useful in checks |
 | YAML | `yq` (v4) | Mike Farah's Go implementation. An unrelated Python `yq` exists; confirm with `yq --version` |
-| Markdown | `mq` | jq-like query syntax; `mq -F json` for scripting |
+| Markdown | `mq` | jq-like query syntax; `mq -F json` for scripting; `-A` + `section::` to address by heading |
 | **YAML frontmatter in Markdown** | **`yq -f process`** | The right tool, and non-obvious — see below |
 | TOML | `yq -p toml` | Or `taplo` where available |
 | SQLite | `sqlite3` | A database you own and mutate. `-json` output pipes straight into `jq` |
@@ -153,6 +153,94 @@ Namespace `https://www.rfc-editor.org/rfc-index`; each `rfc-entry` carries `curr
   there is one option, Python's `id2xml`, and it wants the input filename to start with `rfc` or
   `draft-`, emits **v2** XML needing `xml2rfc --v2v3`, references entities it fetches over the
   network, and crashes on RFC 791. Stripping form feeds yourself is a dozen lines and no dependency.
+
+## When the metadata lives in the prose
+
+The neighbouring case to a rendering: a document with **no separate metadata at all**. An
+Architecture Decision Record is the worked example. Its number lives in the filename *and* in the
+`# N.` heading, its status is a word inside a `## Status` section that also carries explanatory
+prose, and its date is a bare line. Each is a field to a reader and prose to a text tool, and
+**nothing makes the copies agree**.
+
+Address them by structure, never by line offset. `mq`'s `section` module splits a document by
+heading:
+
+```sh
+mq -A 'section::section(self, "Status", 2)' 0002-govern-the-workspace.md   # the whole section
+mq -A 'first(get(first(section::section(self,"Status",2)), "children")) | to_text()'
+# -> Accepted
+```
+
+`-A` is not optional. Section functions need every node of the document at once; without it a bare
+`section::…` fails with `"section" is not defined`, and an explicit `import "section"` instead prints
+`section functions expect all document nodes` **once per node**.
+
+### The status token must stand alone
+
+A status word parsed out of a paragraph is ambiguous, and tools resolve the ambiguity differently —
+one of them silently. Measured against `adrs` 0.11.0 (git `655552f`) on 2026-08-21:
+
+| `## Status` content | parsed as |
+|---|---|
+| `Accepted` | `Accepted` |
+| `Accepted.` | **`Proposed`** — a trailing period is enough |
+| `Accepted. Amended by [ADR-0010](…)` | **`Proposed`** |
+| `Accepted`, then wrapped prose where a line *begins* `superseded for the…` | **`Superseded`** |
+| `Accepted`, then prose where `superseded` *ends* a line | `Accepted` |
+
+The rule being applied is positional: inside `## Status`, the last line whose **first word** is a
+status keyword wins. A hard wrap falling in the wrong place therefore changes a record's status, and
+nothing reports it — the document reads correctly to a human and parses wrongly to a machine. `mq`
+given the same input returns `Accepted. Amended by`, the paragraph's leading text: the ambiguity
+stays visible instead of being guessed.
+
+**So write the token alone on its line and put the prose in the next paragraph.** Then every reading
+agrees, and the fix is a line break rather than a rewording.
+
+### Two parsers over one corpus
+
+The check worth having is not a stricter parser but an **independent** one. A corpus like this
+usually has an authored index beside it; derive the same facts from the documents and compare both
+directions — every indexed record exists, every document is indexed, and the fields match.
+
+```sh
+# per file: the heading number and title, and the status token
+mq '.h1 | to_string()' "$f"                                                    # 13\. Rename `a` to `b`
+mq -A 'first(get(first(section::section(self,"Status",2)),"children")) | to_text()' "$f"
+```
+
+Join those against the index in whatever language is to hand, and assert the count and both
+directions. Verified on a 13-record log: 0 mismatches, then 2 when a heading title and a status token
+were planted — **a comparison that has only ever agreed is not yet a check**.
+
+### `to_text()` and `to_string()` are not interchangeable
+
+Extracting the same heading three ways gives three different strings, and picking the wrong one
+reports mismatches on a corpus that is fine:
+
+| form | result |
+|---|---|
+| the file | ``# 13. Rename `setup-pre-commit` to `setup-git-hooks` `` |
+| `to_text()` | `13. Rename setup-pre-commit to setup-git-hooks` — **inline code flattened** |
+| `to_string()` | ``# 13\. Rename `setup-pre-commit` to `setup-git-hooks` `` — **`\.` escape added** |
+
+`to_text()` renders to plain text; `to_string()` re-serialises to Markdown, escaping what Markdown
+would otherwise interpret. For identity comparison against a raw string, take `to_string()` and undo
+the escaping — or normalise both sides through `to_text()`. Do not mix them.
+
+### Reference tooling
+
+[`adrs`](https://github.com/joshrotenberg/adrs) (Rust, `MIT OR Apache-2.0`) reads and writes the
+classic layout and answers the questions `mq` cannot cheaply reach, because they are about the corpus
+as a graph rather than about one document: unresolved cross-references, duplicate and skipped
+numbers, filename-number versus heading-number drift, and a superseded record that names no
+successor. It also writes both halves of a supersession in one command, which is the pairing that
+otherwise drifts.
+
+Use it for those, and not for reading a status — that is the one thing measured above as wrong.
+Two operational notes, both observed: it opens `$EDITOR` and blocks unless `no_edit = true` is set in
+`adrs.toml`, and 0.11.0's table-of-contents generator links to title slugs rather than to filenames,
+so 11 of 13 links did not resolve until the fix now on `main`.
 
 ## Frontmatter: the case people get wrong
 

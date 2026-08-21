@@ -8,6 +8,40 @@ During development the patch level is bumped per change (`0.1.x`).
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-08-21
+
+### Added
+
+- **`process-structured-data` — *When the metadata lives in the prose*.** The neighbouring case to a
+  rendering: a document with no separate metadata at all. **Architecture Decision Records as the
+  worked case** — the number lives in the filename *and* the `# N.` heading, the status is a word
+  inside a `## Status` section that also holds prose, the date is a bare line. Each is a field to a
+  reader and prose to a text tool, and nothing makes the copies agree.
+  - **`mq` addresses them by structure**, via a `section` module the skill had not mentioned:
+    `mq -A 'section::section(self, "Status", 2)'`. `-A` is not optional — without it a bare
+    `section::…` fails with `"section" is not defined`, and an explicit `import "section"` warns
+    *once per node*.
+  - **A status word parsed out of a paragraph is ambiguous, and one tool resolves it silently.**
+    Measured against `adrs` 0.11.0: `Accepted.` with a trailing period parses as **`Proposed`**, and
+    `Accepted` followed by wrapped prose whose next line *begins* `superseded for the…` parses as
+    **`Superseded`** — the rule is positional, the last line whose first word is a status keyword
+    wins. **A hard wrap in the wrong place changes a record's status and nothing reports it.** `mq`
+    returns the paragraph's leading text instead, leaving the ambiguity visible. Write the token
+    alone on its line.
+  - **Two parsers over one corpus, not one stricter parser.** Derive the facts from the documents,
+    compare against the authored index in both directions. Verified on a 13-record log: 0
+    mismatches, then 2 once a heading title and a status token were planted — a comparison that has
+    only ever agreed is not yet a check.
+  - **`to_text()` and `to_string()` are not interchangeable.** The same heading yields
+    `13. Rename setup-pre-commit to setup-git-hooks` (inline code flattened) or
+    ``# 13\. Rename `setup-pre-commit` …`` (Markdown escape added). Mixing them reports mismatches
+    on a corpus that is fine — which is how the rule was found.
+  - **`adrs` cited as reference tooling, with its boundary stated**: use it for the corpus-as-graph
+    questions `mq` cannot cheaply reach — unresolved cross-references, duplicate and skipped numbers,
+    filename-vs-heading drift, a superseded record naming no successor — and not for reading a
+    status. Two operational notes: it blocks on `$EDITOR` unless `no_edit = true`, and 0.11.0's
+    table-of-contents generator emits title-slug links, 11 of 13 of which did not resolve.
+
 ## [0.1.6] - 2026-08-20
 
 ### Added
