@@ -1,9 +1,9 @@
 ---
 name: process-structured-data
-description: Query and safely edit JSON, YAML, Markdown, TOML and SQLite using format-aware tools. Use when reading a value out of a config file, editing YAML frontmatter, bumping a version across files, scripting a change to structured data, or when sed/grep has mangled a file.
+description: Query, safely edit and lint JSON, YAML, Markdown, TOML and SQLite using format-aware tools. Use when reading a value out of a config file, editing YAML frontmatter, bumping a version across files, scripting a change to structured data, linting Markdown or checking its relative links, or when sed/grep has mangled a file.
 metadata:
   author: "Georges Martin <jrjsmrtn@gmail.com>"
-  version: "0.1.7"
+  version: "0.1.8"
 license: MIT
 ---
 
@@ -19,6 +19,7 @@ operate on bytes and lines.
 - Applying the same change across many files (a version bump, a field rename)
 - After `sed`, `awk` or `>>` has damaged a file
 - Writing a script that will edit structured data unattended
+- Linting Markdown, finding broken relative links, or moving off markdownlint
 
 ## The core rule
 
@@ -44,6 +45,7 @@ Two commands, two silent corruptions, neither visible until the file was rendere
 | JSON | `jq` | Round-trips faithfully. `jq -e` sets exit status from the result — useful in checks |
 | YAML | `yq` (v4) | Mike Farah's Go implementation. An unrelated Python `yq` exists; confirm with `yq --version` |
 | Markdown | `mq` | jq-like query syntax; `mq -F json` for scripting; `-A` + `section::` to address by heading |
+| Markdown — *checking* it | `rumdl` | Lint and format; markdownlint rule IDs and config. See below |
 | **YAML frontmatter in Markdown** | **`yq -f process`** | The right tool, and non-obvious — see below |
 | TOML | `yq -p toml` | Or `taplo` where available |
 | SQLite | `sqlite3` | A database you own and mutate. `-json` output pipes straight into `jq` |
@@ -333,6 +335,42 @@ much easier question.
 best-measured in a single release, after upstream fixed three defects. Re-measure, or cite a
 measurement with a date on it.
 
+## Checking Markdown: `rumdl`
+
+`mq` reads **what a document says**; `rumdl` checks **how it is written**. They do not overlap: one
+is a query language, the other a linter and formatter using markdownlint's rule IDs (`MD001`…).
+
+```sh
+uvx rumdl check docs/                 # exit 1 on any violation, 0 when clean
+uvx rumdl fmt docs/                   # rewrite in place — exits 0 even if violations remain
+```
+
+It is a single Rust binary — `uvx rumdl` from PyPI, or the `rumdl` crate — with no Node. **Gate on
+`check`, never on `fmt`**: `fmt` reports success while leaving what it could not fix.
+
+**Moving off markdownlint.** `rumdl` discovers an existing `.markdownlint.json` by itself. Prove it
+took effect rather than assuming: run once in a directory *without* the config and confirm a rule it
+disables (`MD013`, say) appears, then with it and confirm it is gone. Then run both linters over one
+tree, reduce each output to `file:line rule`, and `comm` the two sets — the disagreements are the
+migration. Two that recur, measured 2026-11-20 against markdownlint-cli 0.39.0 and rumdl 0.3.5:
+
+- **`MD024` defaults differ.** markdownlint flags a heading repeated *anywhere*; rumdl only one
+  repeated under the *same parent*. A Keep a Changelog file, with `### Added` under every version,
+  fails the first and passes the second.
+- **`MD057` exists only in rumdl**: a relative link whose target file is missing. It resolves
+  **relative to the linking file**, whatever the working directory — the check `mq`'s `file_exists`
+  cannot make across a tree (see Gotchas). It checks the file, not the `#fragment`.
+
+As a pre-commit hook: `repo: https://github.com/rvben/rumdl-pre-commit`, hook id `rumdl-check`.
+
+**`rumdl fmt` is a rewrite, so the rule in *Editing prose bodies* applies.** Measured on a 28-file
+documentation tree (rumdl 0.3.5, 2026-11-20): it fixed 892 of 928 violations, a second run changed
+nothing — and the rendered HTML (`pandoc -f gfm -t html`, whitespace collapsed) changed in **2 of
+the 28 files**. Some fixes are meant to change content: `MD026` deleted the `...` ending a heading,
+and `MD034` turned a bare URL inside an unfenced code sample into a link. Others changed structure:
+a tight list became loose. **Run `fmt` as a commit of its own, and diff the rendering before and
+after** — a clean lint result says nothing about whether the meaning survived.
+
 ## Editing by exact match, with an assertion
 
 For surgical edits an exact-string replacement beats a pattern — but only if you check that it
@@ -397,7 +435,7 @@ broken fixture — and confirm it says so. A check that has only ever passed is 
 - **A selector yields `None` for every non-matching node**, and those `None`s flow downstream. Guard
   with `compact()` or `if (self != None): …`, or a later stage will operate on them.
 - **`file_exists` is CWD-relative, not file-relative** — so it cannot check relative links across a
-  tree in a single pass.
+  tree in a single pass. `rumdl`'s `MD057` can (see *Checking Markdown*).
 - **The rendered builtin reference is JavaScript-only** and its `llms.txt` URLs 404. The authoritative
   list, with doc-comments, is the source itself:
   `raw.githubusercontent.com/harehare/mq/main/crates/mq-lang/builtin.mq`; the whole book as one page

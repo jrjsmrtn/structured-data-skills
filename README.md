@@ -8,7 +8,7 @@ including scanned PDFs.
 
 | Skill | For |
 |---|---|
-| **`process-structured-data`** | Reading and editing structured files without corrupting them; YAML frontmatter; metadata embedded in prose; safe bulk edits; checks that actually check |
+| **`process-structured-data`** | Reading and editing structured files without corrupting them; YAML frontmatter; metadata embedded in prose; safe bulk edits; Markdown linting with `rumdl`; checks that actually check |
 | **`extract-document-text`** | Getting text out of PDFs, office documents and images — including scans that need OCR |
 
 ## Install

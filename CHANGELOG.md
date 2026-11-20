@@ -8,6 +8,23 @@ During development the patch level is bumped per change (`0.1.x`).
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-20
+
+### Added
+
+- **`process-structured-data` — *Checking Markdown: `rumdl`*.** `mq` reads what a document says;
+  `rumdl` checks how it is written — a linter and formatter on markdownlint's rule IDs, one binary,
+  no Node. Gate on `rumdl check`: `rumdl fmt` exits 0 with violations left.
+  - **Migrating off markdownlint, as a method**: prove the existing `.markdownlint.json` was picked
+    up with a planted rule, then diff both linters' `file:line rule` sets over one tree. Two
+    differences recorded with versions: `MD024` only flags same-parent duplicates in rumdl, and
+    `MD057` (missing relative-link target, resolved per file) exists only there — closing the gap
+    the `mq` `file_exists` gotcha already named.
+  - **`rumdl fmt` changes meaning, measurably**: on a 28-file tree it was idempotent and fixed 892
+    of 928 violations, yet the rendered HTML changed in 2 files (`MD026` deleting heading
+    punctuation, `MD034` linking a URL inside an unfenced code sample, a tight list made loose).
+    Run it as its own commit and diff the rendering.
+
 ### Fixed
 
 - **The `gitleaks` gate failed open.** When `gitleaks` was not on `PATH` the hook printed
